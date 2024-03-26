@@ -9,11 +9,16 @@ from typing import Callable
 #########################
 
 class CharacterManipulation:
-    ESCAPE: str = "\x1b"
-    SET_COLOUR_COMMAND: str = "38;5;"
-    SETTING_START: str = "["
-    SETTING_END: str = "m"
-    HOME: str = "H"
+    """
+    Class to aggregate character-related functions.
+    """
+
+    # ANSI escape commands
+    ESCAPE: str = "\x1b"                    # ANSI escape code denoting that a command follows
+    SET_COLOUR_COMMAND: str = "38;5;"       # ANSI code denoting character colour setting
+    SETTING_START: str = "["                # ANSI code denoting the start of command
+    SETTING_END: str = "m"                  # ANSI code denoting the end of command
+    HOME: str = "H"                         # ANSI code to return to position 1, 1 in terminal
     BLANK_CHARACTER: str = " "
 
     OBFUSCATION_REGISTER: dict[str, str] = {
@@ -35,14 +40,23 @@ class CharacterManipulation:
 
     @staticmethod
     def get_coloured_character(character: str, colour256: int) -> str:
+        """
+        Attaches ANSI escape command to add colour to input character.
+        """
         return f"{CharacterManipulation.ESCAPE}{CharacterManipulation.SETTING_START}{CharacterManipulation.SET_COLOUR_COMMAND}{colour256}{CharacterManipulation.SETTING_END}{character}"
     
     @staticmethod
     def return_to_top() -> str:
+        """
+        Returns a character that takes the cursor back to position 1, 1 in terminal.
+        """
         return f"{CharacterManipulation.ESCAPE}{CharacterManipulation.SETTING_START}{CharacterManipulation.HOME}"
     
     @staticmethod
     def get_obfuscated_text(text: str, obfuscation_probability: float = 0.3) -> str:
+        """
+        Obfustactes random letters in input text with visually similar characters.
+        """
         obfuscated_letters = []
         for letter in text:
             if (letter not in CharacterManipulation.OBFUSCATION_REGISTER.keys()) or (random.random() > obfuscation_probability):
@@ -54,6 +68,9 @@ class CharacterManipulation:
 
 
 class AsciiImage:
+    """
+    Class for loading and transforming an Ascii image.
+    """
     BLANK_CHARACTER: str = " "
     NEWLINE_CHARACTER: str = "\n"
 
@@ -62,7 +79,7 @@ class AsciiImage:
 
     def get_binary(self) -> list[list[bool]]:
         """
-        Return a matrix (list or rows) where character locations are indicated by True values
+        Return a matrix (list or rows) where character locations are indicated by True values.
         """
         binary_image = []
         for row in self.text.split(self.NEWLINE_CHARACTER):
@@ -95,14 +112,19 @@ class AsciiImage:
 
 
 class Drop:
+    """
+    Object representing a raindrop in matrix rain.
+    """
     def __init__(self, length: int) -> None:
         self.length: int = length
-        self.step: int = 1           # Parameter for possible extension: could make drops that move two cells in a cycle
+        self.step: int = 1           # Parameter for possible extension: could be used to make drops that move several cells in a frame
     
     def get_colour(self, position_in_drop: int, bright_colours: int, lit_colours: list[int], fading_colours: list[int]) -> int:
+        """
+        Takes the position of a cell within the drop and returns the colour that the cell should take in current frame.
+        """
         if position_in_drop == 0:
             return random.choice(bright_colours)
-        
         # sequence of all colors
         colour_sequence = lit_colours + fading_colours
         # If the brightness bias is close to 1, the drop colour is biased towards brighter colours. I.e. the colours towards the beginning og the sequence
@@ -111,6 +133,9 @@ class Drop:
         return colour_sequence[i_colour]
     
     def get_next_position(self, position_in_drop: int) -> int:
+        """
+        Takes the current position of a cell in the drop and returns what position this cell will be in the next frame.
+        """
         next_position = position_in_drop + self.step
         if next_position < self.length:
             return next_position
@@ -118,7 +143,10 @@ class Drop:
 
 
 class Cell:
-    # Colour codes in 256 colour system
+    """
+    Object representing a cell (a single character space) in the matrix.
+    """
+    # Colour codes in Ascii 256 colour system
     BRIGHT_COLOURS: list[int] = [231]           # whites
     LIT_COLOURS: list[int] = [48, 41, 35, 29]   # greens
     DIM_COLOURS: list[int] = [29, 22]           # dark greens
@@ -127,19 +155,23 @@ class Cell:
 
     def __init__(self, character: str) -> None:
         self.character: str = character
-        self.override_character: str = None
-
-        self.is_lit: bool = False
         self.default_colour: int = random.choice(self.LIT_COLOURS)
-        self.override_colour: int = None
 
-        self.position_in_drop: int = 0          # Position starting from drop head. 0-based indexing.
+        self.is_lit: bool = False               # Variable determining whether the cell should be visible in current frame
+
+        self.position_in_drop: int = 0          # Cell position in a Drop, starting from drop head. 0-based indexing
         self.drop: Drop = None
 
-        self.is_ascii_image: bool = False       # Cell is part of a 2d ascii "image"
+        self.override_colour: int = None        # Used for applying colour changing glitches to cell
+        self.override_character: str = None     # Used for applying message to cell
+
+        self.is_ascii_image: bool = False       # Cell is part of a 2d ascii image
         self.is_message: bool = False           # Cell is part of a vertical text "message"
 
     def __str__(self) -> str:
+        """
+        Returns the cell character in correct colour if it is visible (i.e. "lit") or blank character if it's not visible.
+        """
         if self.is_lit:
             active_character = self.get_active_character()
             active_colour = self.get_active_colour()
@@ -147,6 +179,9 @@ class Cell:
         return CharacterManipulation.BLANK_CHARACTER
 
     def get_active_colour(self):
+        """
+        Returns the colour of the character based on whether it's currently part of a rain drop or an ongoing glitch.
+        """
         if self.override_colour:
             return self.override_colour
         if self.drop:
@@ -155,17 +190,26 @@ class Cell:
         return self.default_colour
 
     def get_active_character(self):
-        # black doesn't look good on screen, so we return a blank character instead
+        """
+        Returns the default character or override character of the cell - or blank character if cell colour is set to invisible.
+        """
+        # Black doesn't look good on screen, so we return a blank character instead
         if self.get_active_colour() == self.INIVISIBLE_COLOUR:
             return CharacterManipulation.BLANK_CHARACTER
         return self.override_character or self.character
 
     def set_drop_head(self, drop_length: int) -> None:
+        """
+        Sets the cell as the first cell of an incoming drop.
+        """
         self.position_in_drop = 0
         self.drop = Drop(drop_length)
         self.is_lit = True
 
     def move_drop(self, image_active: bool) -> None:
+        """
+        Re-assigns the cell position in a rain drop for the next frame.
+        """
         if not self.drop:
             # Cell is not part of an active drop
             return
@@ -180,9 +224,12 @@ class Cell:
 
 
 class Glitch:
+    """
+    Object representing single-cell glitches occuring in the matrix.
+    """
     def __init__(self, cell: Cell) -> None:
         self.cell: Cell = cell
-        self.action_queue: list[Callable] = []
+        self.action_queue: list[Callable] = []      # A list of cell transformations to be carried out as part of the glitch
 
         # Don't glitch messages
         if cell.is_message:
@@ -190,9 +237,17 @@ class Glitch:
 
         self.action_queue += random.choice([self.burnout(), self.flicker_colour(), self.flicker_character()])
         self.action_queue += [self.clear]
-        # Reverse, so it can be applied by pop()
+        # Reverse, so it can be applied by list.pop()
         self.action_queue = list(reversed(self.action_queue))
     
+    def do_action(self) -> None:
+        """
+        Performs tne next transformation step on a cell and then removes it from the queue.
+        """
+        action = self.action_queue.pop()
+        action()
+
+    # Single transformations, i.e. actions on the glitched cell. Building blocks for action sequences
     def flash(self) -> None:
         self.cell.override_colour = random.choice(self.cell.BRIGHT_COLOURS)
 
@@ -211,62 +266,77 @@ class Glitch:
     def clear(self) -> list:
         self.cell.override_colour = None
 
+    # Action sequences
     def flicker_colour(self) -> list:
-        # Cycling through dim colours
+        """
+        Change cell colour between random dim colours repeatedly.
+        """
         return random.randint(5, 20) * ([self.dim] + random.randint(5, 10) * [self.sleep])
     
     def flicker_character(self) -> list:
-        # Change characters sequentially
+        """
+        Change cell character repeatedly.
+        """
         return random.randint(5, 10) * ([self.change_character] + 10 * [self.sleep])
     
     def burnout(self) -> list:
+        """
+        Apply a bright colour for a few frames and then make cell invisible for a period.
+        """
         # Go bright and then dark for a period, before reappearing again
-        return [self.flash] + random.randint(1, 3) * [self.sleep] + random.randint(5, 20) * [self.invisible] + [self.change_character]
-    
-    def do_action(self) -> None:
-        # Performs tne next action step and removes it from the queue
-        action = self.action_queue.pop()
-        action()
+        return [self.flash] + random.randint(1, 4) * [self.sleep] + random.randint(5, 20) * [self.invisible] + [self.change_character]
 
 
 class Message:
+    """
+    Object representing the hidden messages appearing vertically in the matrix characters.
+    """
     def __init__(self, cells: list[tuple[Cell, str]]) -> None:
         self.cells: list[tuple[Cell, str]] = cells
-        # Set random order for applying actions
+        # Set random order of cells to apply the reveal / hide actions
         self.action_queue: list[tuple[Cell, str]] = random.sample(self.cells, k=len(self.cells))
-        # Variables for timing message action steps
-        self.sleep: int = 0
-        # Ongoing action
-        self.action: tuple[Cell, str] = None
-        # Deletion indicator
-        self.deleted: bool = False
+
+        self.sleep: int = 0                             # Variable for delaying the message action steps
+        self.action: tuple[Cell, str] = None            # Ongoing action
+        self.deleted: bool = False                      # Indicator to carry out the message deletion sequence
     
     @staticmethod
     def set_override_character(cell: Cell, character: str) -> None:
+        """
+        Set cell override character to reveal or hide the message.
+        """
         # If character is None (i.e. deletion sequence), remove message indicator from cell
         cell.is_message = character is not None
         cell.override_character = character
     
     def do_action(self) -> None:
+        """
+        Perform a step in the message revealing / hiding sequence.
+        """
         # While the ongoing action is in sleep phase, count down sleep steps
         if self.sleep:
             self.sleep -= 1
             return
+        
         # If there is no ongoing action and no queue, do nothing
         if not (self.action_queue or self.action):
             return
+        
         # If there is no ongoing action, start the next one from queue
         if not self.action:
             self.action = self.action_queue.pop()
             self.set_override_character(self.action[0], CharacterManipulation.BLANK_CHARACTER)
             # Apply random blank period for every action
-            self.sleep = random.randint(0, 2)
-        # If the ongoing action has completed the sleep phase, set the message character
+            self.sleep = random.randint(0, 5)
+        
+        # If the ongoing action has completed the sleep phase, set the message character and clear the action variable
         self.set_override_character(*self.action)
-        # Clear ongoing action
         self.action = None
 
     def delete(self) -> None:
+        """
+        Set a sequence for deleting the message.
+        """
         # Avoid restarting ongoing delete
         if not self.deleted:
             # Set random deletion order for cells
@@ -275,43 +345,46 @@ class Message:
 
 
 class Matrix:
+    """
+    Object representing the onscreen matrix (rows and cells).
+    """
     MIN_DROP_LENGTH: int = 4
     MAX_DROP_LENGTH: int = 25
-    DROP_PROBABLITY: float = 0.01               # Drop probablity per column per step
-    GLITCH_PROBABILITY: float = 0.0002          # Glitch probability per cell per step
-    N_CONCURRENT_MESSAGES: int = 50             # Number of messages active at any time
-    MESSAGE_REPLACE_PROBABLITY: float = 0.001   # Probablity that an existing message is deleted and another one spawned per cycle
+    DROP_PROBABLITY: float = 0.01                           # Drop probablity per column per step
+    GLITCH_PROBABILITY: float = 0.0002                      # Glitch probability per cell per step
+    N_CONCURRENT_MESSAGES: int = 50                         # Number of messages active at any time
+    MESSAGE_REPLACE_PROBABLITY: float = 0.001               # Probablity that an existing message is deleted and another one spawned per frame
 
     # Forestry related symbols: ϙ Ѧ ⍋ ⍦ ☙ ⚐ ⚘ ⚲ ⚶ ✿ ❀ ❦ ❧ ⲯ ⸙ 🙖 🜎
     CHARACTER_CODE_POINTS: list[int] = [985, 1126, 9035, 9062, 9753, 9872, 9880, 9906, 9910, 10047, 10048, 10086, 10087, 11439, 11801, 128598, 128782]
     AVAILABLE_CHARACTERS: list[int] = [chr(x) for x in CHARACTER_CODE_POINTS]
 
-    FRAME_SLEEP_PERIOD_SECONDS: float = 0.07    # Sets the speed of falling drops
-
     def __init__(self, n_rows: int, n_columns: int) -> None:
-        self.n_rows = n_rows
-        self.n_columns = n_columns
-        # List of rows consisting of cells
-        self.rows: list[list[Cell]] = []
+        self.n_rows: int = n_rows
+        self.n_columns: int = n_columns
+
+        self.rows: list[list[Cell]] = []                    # Variable representing a list of rows consisting of cells
+        self.glitches: list[Glitch] = []                    # List of active glitches
+        self.messages: list[tuple[Message, int]] = []       # Message object and the index of the column it's applied to (allows to control that every column only has one message)
+        self.active_drop_probability: float = self.DROP_PROBABLITY      # Duplicated drop probability variable is set, because it changes when "stopping" the rain
+        self.rain_active: bool = True                       # Variable to indicate if the rain stop sequence should be started
+
         # Populate the matrix
         for _ in range(self.n_rows):
             row = [Cell(character) for character in random.choices(self.AVAILABLE_CHARACTERS, k=self.n_columns)]
             self.rows.append(row)
-        
-        # Duplicated drop probability variable is set, because it changes when "stopping" the rain
-        self.active_drop_probability: float = self.DROP_PROBABLITY
-        self.rain_active: bool = True
-        self.glitches: list[Glitch] = []
-        # Tuples of (message, message column index)
-        # Allows to control that every column only has one message
-        self.messages: list[tuple[Message, int]] = []
 
     def __str__(self) -> str:
-        # Get the string that is printed on screen
+        """
+        Returns the string that is printed on screen.
+        """
         return "".join("".join(str(cell) for cell in row) for row in self.rows)
     
     def set_ascii_image(self, ascii_image: AsciiImage) -> None:
-        ascii_image_matrix = ascii_image.get_scaled_matrix(self.n_rows, self.n_columns)
+        """
+        Sets an ascii image that can be revealed during the animation.
+        """
+        ascii_image_matrix: list[list[bool]] = ascii_image.get_scaled_matrix(self.n_rows, self.n_columns)
         for i_row, image_row in enumerate(ascii_image_matrix):
             for i_column, is_ascii_image in enumerate(image_row):
                 self.rows[i_row][i_column].is_ascii_image = is_ascii_image
@@ -328,25 +401,34 @@ class Matrix:
         self.ascii_image_active = False
 
     def set_message_texts(self, message_texts: list[str]) -> None:
+        """
+        Sets the text of the messages that can be revealed later.
+        """
         self.message_texts: list = message_texts
 
     def move_drops(self) -> None:
-        # Iterate through rows starting from the bottom
+        """
+        Cycles through all cells in the matrix and updates their positions in drops to advance frame.
+        """
+        # Iterate through rows from second to last
+        # Iteration starts from the bottom row, because next frame of a cell depends on the state of the cell above
         for i_row_above, row in reversed(list(enumerate(self.rows[1:]))):
-            # Iterate through cells in the row
             for i_column, current_cell in enumerate(row):
                 # Advance frame of each cell
                 current_cell.move_drop(image_active = self.ascii_image_active)
-                # If cell one row above is drop head, set cell as drop head
+                # If the cell above is drop head, set the current cell as drop head for next frame
                 cell_above = self.rows[i_row_above][i_column]
                 if cell_above.drop and cell_above.position_in_drop == 0:
                     current_cell.set_drop_head(drop_length=cell_above.drop.length)
         
-        # Advance frame for cells in first row
+        # Iterate through first row separately, because there is no row above
         for first_row_cell in self.rows[0]:
             first_row_cell.move_drop(image_active = self.ascii_image_active)
 
     def spawn_drops(self) -> None:
+        """
+        Spawn new drops in the first row with currently active drop probability.
+        """
         for cell in self.rows[0]:
             if random.random() > self.active_drop_probability:
                 continue
@@ -355,6 +437,9 @@ class Matrix:
             cell.set_drop_head(drop_length)
 
     def spawn_ascii_image_washing_drops(self) -> None:
+        """
+        Spawn new drops in the top boundary of an Ascii image if the image is no longer active (to "wash" it away).
+        """
         if self.ascii_image_active:
             return
         
@@ -363,16 +448,16 @@ class Matrix:
         if not image_top_cells_active:
             return
 
-        # Increase drop probablity as less cells remain in the image (for better visual)
+        # Increase drop probablity as less cells remain in the image top boundary (for better visual)
         drop_probability_start: float = Matrix.DROP_PROBABLITY / 30
         drop_probability_end: float = 0.05
 
-        n_message_columns_start = len(self.image_top_cells)
-        n_message_columns_remaining = len(image_top_cells_active)
+        n_top_boundary_cells_initial = len(self.image_top_cells)
+        n_top_boundary_cells_remaining = len(image_top_cells_active)
 
-        # Increase wash drop probability in cubic progression as less columns remain for slow degradation in the beginning and fast end
-        stop_function = lambda x: drop_probability_start + (drop_probability_end - drop_probability_start) * (1 - x / n_message_columns_start)**3
-        drop_probablity = stop_function(n_message_columns_remaining)
+        # Increase wash drop probability in cubic progression for slow degradation in the beginning and fast in the end
+        stop_function = lambda x: drop_probability_start + (drop_probability_end - drop_probability_start) * (1 - x / n_top_boundary_cells_initial)**3
+        drop_probablity = stop_function(n_top_boundary_cells_remaining)
 
         for cell in image_top_cells_active:
             if random.random() > drop_probablity:
@@ -381,8 +466,12 @@ class Matrix:
             cell.set_drop_head(drop_length)
 
     def spawn_glitches(self) -> None:
+        """
+        Spawn new glitches in random cells.
+        """
         cells_to_glitch = []
-        # Choose random cells to glitch
+        # Choose random cells to glitch.
+        # One cell could be added several times.
         for row in self.rows:
             for cell in row:
                 if random.random() < self.GLITCH_PROBABILITY:
@@ -391,31 +480,51 @@ class Matrix:
         self.glitches += [Glitch(cell) for cell in cells_to_glitch]
     
     def apply_glitches(self) -> None:
+        """
+        Cycle through active glitches and apply their actions to cells.
+        """
         # Remove glitches that have ran out of actions
         self.glitches = [glitch for glitch in self.glitches if glitch.action_queue]
+        # When same cell has been randomly added to the glitch list several times, the later glitches action overrides the earlier one in every frame.
         for glitch in self.glitches:
             glitch.do_action()
 
     def spawn_message(self) -> None:
+        """
+        Selects a random message from available message texts, obfuscates it and places it in the matrix.
+        At most one message per frame is spawned.
+        """
+        # A new message can only spawned if the current number of messages is smaller then the set number.
         if len(self.messages) >= self.N_CONCURRENT_MESSAGES:
             return
         message_text = random.choice(self.message_texts)
-        # Obfuscate and pad with spaces
-        message_text_formatted = f" {CharacterManipulation.get_obfuscated_text(message_text)} "
+
+        # Obfuscate and pad message with spaces
+        message_text_formatted = f"  {CharacterManipulation.get_obfuscated_text(message_text)}  "
+
+        # Disregard the message if it can't be displayed completely
         if len(message_text_formatted) >= self.n_rows:
             return
+        
         # Select a column that does not already have a message
         used_columns = [i_column for _, i_column in self.messages]
         available_columns = [i for i in range(self.n_columns) if i not in used_columns]
         i_column = random.choice(available_columns)
-        # Select a row such that the message would fit the column
+
+        # Select a starting row such that the message would fit the matrix
         i_start_row = random.choice(range(self.n_rows - len(message_text_formatted)))
         message_cells = [self.rows[i_row][i_column] for i_row in range(i_start_row, i_start_row + len(message_text_formatted))]
+
         message = Message([(cell, character) for cell, character in zip(message_cells, message_text_formatted)])
         self.messages += [(message, i_column)]
 
     def apply_messages(self) -> None:
-        # Remove deleted messages that have completed all actions
+        """
+        Apply an action step on each message to reveal / hide the messages.
+        Set messages for deletion with random probability.
+        Disregard expired messages.
+        """
+        # Remove deleted messages only if they have completed all actions (i.e. are fully hidden)
         self.messages = [(message, i_column) for message, i_column in self.messages if not message.deleted or message.action]
         for message, _ in self.messages:
             message.do_action()
@@ -423,33 +532,31 @@ class Matrix:
         if self.messages and (random.random() < self.MESSAGE_REPLACE_PROBABLITY):
             self.messages[0][0].delete()
 
-    def print_frame(self) -> None:
-        # use print end parameter to avoid adding newline to the end
-        # Return to top and flush the screen on every frame
-        print(CharacterManipulation.return_to_top(), end="")
-        print(self, end="", flush=True)
-        time.sleep(self.FRAME_SLEEP_PERIOD_SECONDS)
+    def advance_frame(self) -> None:
+        self.move_drops()
+        self.spawn_drops()
+        self.spawn_ascii_image_washing_drops()
+
+        self.apply_glitches()
+        self.spawn_glitches()
+
+        self.apply_messages()
+        self.spawn_message()
+
+
 
     def run(self) -> None:
-        # Execution timing
-        start_timestamp: float = time.time()
+        # Execution sequence
         start_ascii_image_seconds: int = 20
         stop_rain_seconds: int = 28
         wash_ascii_image_seconds: int = 80
         cycle_end_seconds: int = 120
 
+        start_timestamp: float = time.time()
         while (time.time() - start_timestamp) < cycle_end_seconds:
-            # Print current state and then advance the frame
             self.print_frame()
 
-            self.move_drops()
-            self.spawn_drops()
 
-            self.apply_glitches()
-            self.spawn_glitches()
-
-            self.apply_messages()
-            self.spawn_message()
 
             # Switches for different stages of the animation
             if (time.time() - start_timestamp) > start_ascii_image_seconds:
@@ -470,20 +577,55 @@ class Matrix:
                 self.active_drop_probability = stop_function(seconds_past_stop_command)
 
 
+class Transition:
+    def __init__(self, start_value: float, end_value: float, n_steps: int) -> None:
+        self.function_cubic = lambda x: x
+
+    def get_cubic_state:
+        pass
+
+    def get_linear_state:
+
+lambda x: self.DROP_PROBABLITY * abs(min(0, (x / stop_transition_duration_seconds - 1)**3))
+lambda x: drop_probability_start + (drop_probability_end - drop_probability_start) * (1 - x / n_top_boundary_cells_initial)**3
+
+
+class Animation:
+    FRAME_SLEEP_PERIOD_SECONDS: float = 0.07            # Sets the speed of falling drops
+
+    def __init__(self, matrix: Matrix) -> None:
+        self.matrix = matrix
+    
+    def get_gradual_fade(start, end, steps)
+
+    def print_frame(self) -> None:
+        """
+        Display frame in terminal.
+        """
+        # Print end parameter is used to avoid adding newline to the end of the printed strings
+        # Return to top and flush the screen on every frame
+        print(CharacterManipulation.return_to_top(), end="")
+        print(self.matrix, end="", flush=True)
+        time.sleep(self.FRAME_SLEEP_PERIOD_SECONDS)
+
+
+
 #######
 # Run #
 #######
 
 while True:
+    # Initialise matrix
     n_columns, n_rows = os.get_terminal_size()
     matrix = Matrix(n_rows, n_columns)
 
+    # Set ascii image
     with open("ascii_image.txt") as ascii_image_file:
         ascii_text = ascii_image_file.read()
-
     ascii_image = AsciiImage(ascii_text)
     matrix.set_ascii_image(ascii_image)
 
+    # Set messages
     with open("subliminal_messages.txt") as messages_file:
         message_texts = [message.strip() for message in messages_file.readlines()]
     matrix.set_message_texts(message_texts)
