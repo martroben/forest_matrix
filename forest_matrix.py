@@ -8,7 +8,7 @@ from typing import Callable
 # Functions and Classes #
 #########################
 
-class AsciiTricks:
+class CharacterManipulation:
     ESCAPE: str = "\x1b"
     SET_COLOUR_COMMAND: str = "38;5;"
     SETTING_START: str = "["
@@ -16,7 +16,6 @@ class AsciiTricks:
     HOME: str = "H"
     BLANK_CHARACTER: str = " "
 
-    # From https://obfuscator.uo1.net/
     OBFUSCATION_REGISTER: dict[str, str] = {
         "a": ["@", "4", "Д"],
         "b": ["ß", "Ъ"],
@@ -36,20 +35,20 @@ class AsciiTricks:
 
     @staticmethod
     def get_coloured_character(character: str, colour256: int) -> str:
-        return f"{AsciiTricks.ESCAPE}{AsciiTricks.SETTING_START}{AsciiTricks.SET_COLOUR_COMMAND}{colour256}{AsciiTricks.SETTING_END}{character}"
+        return f"{CharacterManipulation.ESCAPE}{CharacterManipulation.SETTING_START}{CharacterManipulation.SET_COLOUR_COMMAND}{colour256}{CharacterManipulation.SETTING_END}{character}"
     
     @staticmethod
     def return_to_top() -> str:
-        return f"{AsciiTricks.ESCAPE}{AsciiTricks.SETTING_START}{AsciiTricks.HOME}"
+        return f"{CharacterManipulation.ESCAPE}{CharacterManipulation.SETTING_START}{CharacterManipulation.HOME}"
     
     @staticmethod
     def get_obfuscated_text(text: str, obfuscation_probability: float = 0.3) -> str:
         obfuscated_letters = []
         for letter in text:
-            if (letter not in AsciiTricks.OBFUSCATION_REGISTER.keys()) or (random.random() > obfuscation_probability):
+            if (letter not in CharacterManipulation.OBFUSCATION_REGISTER.keys()) or (random.random() > obfuscation_probability):
                 obfuscated_letters += [letter]
                 continue
-            obfuscated_letters += [random.choice(AsciiTricks.OBFUSCATION_REGISTER[letter])]
+            obfuscated_letters += [random.choice(CharacterManipulation.OBFUSCATION_REGISTER[letter])]
         return "".join(obfuscated_letters)
 
 
@@ -144,8 +143,8 @@ class Cell:
         if self.is_lit:
             active_character = self.get_active_character()
             active_colour = self.get_active_colour()
-            return AsciiTricks.get_coloured_character(active_character, active_colour)
-        return AsciiTricks.BLANK_CHARACTER
+            return CharacterManipulation.get_coloured_character(active_character, active_colour)
+        return CharacterManipulation.BLANK_CHARACTER
 
     def get_active_colour(self):
         if self.override_colour:
@@ -158,7 +157,7 @@ class Cell:
     def get_active_character(self):
         # black doesn't look good on screen, so we return a blank character instead
         if self.get_active_colour() == self.INIVISIBLE_COLOUR:
-            return AsciiTricks.BLANK_CHARACTER
+            return CharacterManipulation.BLANK_CHARACTER
         return self.override_character or self.character
 
     def set_drop_head(self, drop_length: int) -> None:
@@ -259,7 +258,7 @@ class Message:
         # If there is no ongoing action, start the next one from queue
         if not self.action:
             self.action = self.action_queue.pop()
-            self.set_override_character(self.action[0], AsciiTricks.BLANK_CHARACTER)
+            self.set_override_character(self.action[0], CharacterManipulation.BLANK_CHARACTER)
             # Apply random blank period for every action
             self.sleep = random.randint(0, 2)
         # If the ongoing action has completed the sleep phase, set the message character
@@ -299,7 +298,7 @@ class Matrix:
             row = [Cell(character) for character in random.choices(self.AVAILABLE_CHARACTERS, k=self.n_columns)]
             self.rows.append(row)
         
-        # Duplicated instance variable is set, because it changes when "stopping" the rain
+        # Duplicated drop probability variable is set, because it changes when "stopping" the rain
         self.active_drop_probability: float = self.DROP_PROBABLITY
         self.rain_active: bool = True
         self.glitches: list[Glitch] = []
@@ -402,7 +401,7 @@ class Matrix:
             return
         message_text = random.choice(self.message_texts)
         # Obfuscate and pad with spaces
-        message_text_formatted = f" {AsciiTricks.get_obfuscated_text(message_text)} "
+        message_text_formatted = f" {CharacterManipulation.get_obfuscated_text(message_text)} "
         if len(message_text_formatted) >= self.n_rows:
             return
         # Select a column that does not already have a message
@@ -427,7 +426,7 @@ class Matrix:
     def print_frame(self) -> None:
         # use print end parameter to avoid adding newline to the end
         # Return to top and flush the screen on every frame
-        print(AsciiTricks.return_to_top(), end="")
+        print(CharacterManipulation.return_to_top(), end="")
         print(self, end="", flush=True)
         time.sleep(self.FRAME_SLEEP_PERIOD_SECONDS)
 
@@ -437,7 +436,7 @@ class Matrix:
         start_ascii_image_seconds: int = 20
         stop_rain_seconds: int = 28
         wash_ascii_image_seconds: int = 80
-        cycle_end_seconds: int = 110
+        cycle_end_seconds: int = 120
 
         while (time.time() - start_timestamp) < cycle_end_seconds:
             # Print current state and then advance the frame
@@ -476,16 +475,11 @@ class Matrix:
 #######
 
 while True:
-    # 1920 x 1080 (full HD): 56 rows x 209 columns
-    # use python3 -c "import os; print(os.get_terminal_size())" in full screen terminal to get matrix dimensions
-    # Windows Terminal: use Settings > Rendering > Use software rendering: on for smoother animation
-    # Windows Terminal: use Settings > Defaults > Cursor shape: Vintage and Cursor height: 1 to remove cursor flicker
     n_columns, n_rows = os.get_terminal_size()
     matrix = Matrix(n_rows, n_columns)
 
-    # Ascii image generated by https://seotoolbelt.co/tools/ascii-art-generator/#text-list-tab
-    with open("ascii_logo.txt") as logo_file:
-        ascii_text = logo_file.read()
+    with open("ascii_image.txt") as ascii_image_file:
+        ascii_text = ascii_image_file.read()
 
     ascii_image = AsciiImage(ascii_text)
     matrix.set_ascii_image(ascii_image)
