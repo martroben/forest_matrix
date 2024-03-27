@@ -4,9 +4,9 @@ import time
 from typing import Callable
 
 
-#########################
-# Functions and Classes #
-#########################
+##################
+# Helper Classes #
+##################
 
 class CharacterManipulation:
     """
@@ -53,7 +53,7 @@ class CharacterManipulation:
         return f"{CharacterManipulation.ESCAPE}{CharacterManipulation.SETTING_START}{CharacterManipulation.HOME}"
     
     @staticmethod
-    def get_obfuscated_text(text: str, obfuscation_probability: float = 0.3) -> str:
+    def get_obfuscated_text(text: str, obfuscation_probability: float) -> str:
         """
         Obfustactes random letters in input text with visually similar characters.
         """
@@ -142,6 +142,10 @@ class AsciiImage:
 
         return scaled_image
 
+
+##################
+# Matrix classes #
+##################
 
 class Drop:
     """
@@ -386,6 +390,7 @@ class Matrix:
     GLITCH_PROBABILITY: float = 0.0002                      # Glitch probability per cell per step
     N_CONCURRENT_MESSAGES: int = 50                         # Number of messages active at any time
     MESSAGE_REPLACE_PROBABLITY: float = 0.001               # Probablity that an existing message is deleted and another one spawned per frame
+    MESSAGE_OBFUSCATION_PROBABILITY: float = 0.25           # Probability of letter obfuscation per letter in message
 
     # Forestry related symbols: ϙ Ѧ ⍋ ⍦ ☙ ⚐ ⚘ ⚲ ⚶ ✿ ❀ ❦ ❧ ⲯ ⸙ 🙖 🜎
     CHARACTER_CODE_POINTS: list[int] = [985, 1126, 9035, 9062, 9753, 9872, 9880, 9906, 9910, 10047, 10048, 10086, 10087, 11439, 11801, 128598, 128782]
@@ -431,12 +436,6 @@ class Matrix:
                     continue
 
         self.ascii_image_active = False
-
-    def set_message_texts(self, message_texts: list[str]) -> None:
-        """
-        Sets the text of the messages that can be revealed later.
-        """
-        self.message_texts: list = message_texts
 
     def move_drops(self) -> None:
         """
@@ -492,13 +491,24 @@ class Matrix:
             start_probability=drop_probability_start,
             end_probability=drop_probability_end,
             n_steps=n_top_boundary_cells_initial)
-        drop_probablity = gradual_change.get_accelerating_probability(n_top_boundary_cells_remaining)
+        drop_probablity = gradual_change.get_accelerating_probability(n_top_boundary_cells_initial - n_top_boundary_cells_remaining)
 
         for cell in image_top_cells_active:
             if random.random() > drop_probablity:
                 continue
             drop_length = random.randint(self.MIN_DROP_LENGTH, self.MAX_DROP_LENGTH)
             cell.set_drop_head(drop_length)
+
+    def change_rain_decelerating(self, target_drop_probability: float, change_time_elapsed_seconds: float, change_duration_seconds: float) -> None:
+        """
+        Change active drop probability based on time elapsed since the transition start.
+        """
+        gradual_change = GradualChange(
+            start_probability=self.DROP_PROBABLITY,
+            end_probability=target_drop_probability,
+            n_steps=change_duration_seconds)
+        
+        self.active_drop_probability = gradual_change.get_decelerating_probability(change_time_elapsed_seconds)
 
     def spawn_glitches(self) -> None:
         """
@@ -524,6 +534,12 @@ class Matrix:
         for glitch in self.glitches:
             glitch.do_action()
 
+    def set_message_texts(self, message_texts: list[str]) -> None:
+        """
+        Sets the text of the messages that can be revealed later.
+        """
+        self.message_texts: list = message_texts
+
     def spawn_message(self) -> None:
         """
         Selects a random message from available message texts, obfuscates it and places it in the matrix.
@@ -535,7 +551,7 @@ class Matrix:
         message_text = random.choice(self.message_texts)
 
         # Obfuscate and pad message with spaces
-        message_text_formatted = f"  {CharacterManipulation.get_obfuscated_text(message_text)}  "
+        message_text_formatted = f"  {CharacterManipulation.get_obfuscated_text(message_text, self.MESSAGE_OBFUSCATION_PROBABILITY)}  "
 
         # Disregard the message if it can't be displayed completely
         if len(message_text_formatted) >= self.n_rows:
@@ -567,96 +583,155 @@ class Matrix:
         if self.messages and (random.random() < self.MESSAGE_REPLACE_PROBABLITY):
             self.messages[0][0].delete()
 
-    def advance_frame(self) -> None:
-        self.move_drops()
-        self.spawn_drops()
-        self.spawn_ascii_image_washing_drops()
 
-        self.apply_glitches()
-        self.spawn_glitches()
+#####################
+# Animation classes #
+#####################
 
-        self.apply_messages()
-        self.spawn_message()
+class TimingPlan:
+    """
+    Class for managing timed events during animation.
+    Keeps track of time elapsed and indicates which events are currently due.
+    """
+    def __init__(self, **kwargs) -> None:
+        self.events = {}
+        for key, value in kwargs.items():
+            self.events[key] = value
+        self.timestamps = {}
+    
+    def set_timestamp_start(self, t: float) -> None:
+        self.start_timestamp = t
 
+    def set_timestamp_current(self, t: float) -> None:
+        self.current_timestamp: float = t
+        self.time_elapsed = self.current_timestamp - self.start_timestamp
 
+    def set_timestamp_immutable(self, timestamp_name: str, t: float) -> None:
+        """
+        Function to set timestamps with chosen name. Timestamp for some name is only set once and is not updated.
+        """
+        if not self.timestamps.get(timestamp_name):
+            self.timestamps[timestamp_name] = t
 
-    def run(self) -> None:
-        # Execution sequence
-        start_ascii_image_seconds: int = 20
-        stop_rain_seconds: int = 28
-        wash_ascii_image_seconds: int = 80
-        cycle_end_seconds: int = 120
+    def get_time_elapsed(self, timestamp_name: str = None) -> float:
+        """
+        Get time elapsed from a timestamp. If no timestamp name is provided, returns time elapsed from start timestamp.
+        """
+        reference_timestamp = self.timestamps.get(timestamp_name) or self.start_timestamp
+        return self.current_timestamp - reference_timestamp
 
-        start_timestamp: float = time.time()
-        while (time.time() - start_timestamp) < cycle_end_seconds:
-            self.print_frame()
-
-
-
-            # Switches for different stages of the animation
-            if (time.time() - start_timestamp) > start_ascii_image_seconds:
-                self.ascii_image_active = True
-
-            if (time.time() - start_timestamp) > stop_rain_seconds:
-                self.rain_active = False
-
-            if (time.time() - start_timestamp) > wash_ascii_image_seconds:
-                self.ascii_image_active = False
-                self.spawn_ascii_image_washing_drops()
-            
-            if not self.rain_active:
-                stop_transition_duration_seconds = 30
-                seconds_past_stop_command = time.time() - start_timestamp - stop_rain_seconds
-                # Reduce drop probability in cubic progression to stop rain gradually
-                stop_function = lambda x: self.DROP_PROBABLITY * abs(min(0, (x / stop_transition_duration_seconds - 1)**3))
-                self.active_drop_probability = stop_function(seconds_past_stop_command)
-
-
-
-
-
-# lambda x: self.DROP_PROBABLITY * abs(min(0, (x / stop_transition_duration_seconds - 1)**3))
-# lambda x: drop_probability_start + (drop_probability_end - drop_probability_start) * (1 - x / n_top_boundary_cells_initial)**3
+    def is_event_due(self, event_name: str) -> bool:
+        """
+        Returns whether time elapsed is past the start time of the input event.
+        """
+        return (event_start_time := self.events.get(event_name)) and event_start_time < self.time_elapsed
 
 
 class Animation:
+    """
+    Class for orchestrating the matrix animation in terminal.
+    """
     FRAME_SLEEP_PERIOD_SECONDS: float = 0.07            # Sets the speed of falling drops
 
     def __init__(self, matrix: Matrix) -> None:
         self.matrix = matrix
-    
-    def get_gradual_fade(start, end, steps)
+        self.is_running = False
 
     def print_frame(self) -> None:
         """
         Display frame in terminal.
         """
-        # Print end parameter is used to avoid adding newline to the end of the printed strings
-        # Return to top and flush the screen on every frame
-        print(CharacterManipulation.return_to_top(), end="")
-        print(self.matrix, end="", flush=True)
-        time.sleep(self.FRAME_SLEEP_PERIOD_SECONDS)
+        # Print function "end" parameter is used to avoid adding newline to the end of the printed strings
+        print(CharacterManipulation.return_to_top(), end="")    # Return to top
+        print(self.matrix, end="", flush=True)                  # Flush screen and print the matrix
+    
+    def update_frame(self) -> None:
+        """
+        Blanket function, aggregating all necessary updates in an animation step (frame).
+        """
+        self.matrix.move_drops()
+        self.matrix.spawn_drops()
+        self.matrix.spawn_ascii_image_washing_drops()
 
+        self.matrix.apply_glitches()
+        self.matrix.spawn_glitches()
+
+        self.matrix.apply_messages()
+        self.matrix.spawn_message()
+
+    def set_timing_plan(self, timing_plan: TimingPlan) -> None:
+        self.timing_plan = timing_plan
+
+    def apply_timing_plan(self) -> None:
+        """
+        Function that orchestrates timed changes in animation.
+        """
+        self.timing_plan.set_timestamp_current(time.time())
+
+        # Display ascii image
+        if self.timing_plan.is_event_due("start_ascii_image"):
+            self.matrix.ascii_image_active = True
+        
+        # Stop rain
+        if self.timing_plan.is_event_due("stop_rain"):
+            # Idempotent actions that only have effect when first called
+            self.matrix.rain_active = False
+            self.timing_plan.set_timestamp_immutable("stop_rain", time.time())
+            # Reduce drop probability to 0 over 30 seconds
+            self.matrix.change_rain_decelerating(
+                target_drop_probability=0,
+                change_time_elapsed_seconds=self.timing_plan.get_time_elapsed("stop_rain"),
+                change_duration_seconds=30)
+
+        # Wash ascii image
+        if self.timing_plan.is_event_due("wash_ascii_image"):
+            self.matrix.ascii_image_active = False
+
+        # Stop animation
+        if self.timing_plan.is_event_due("total_run_time"):
+            self.is_running = False
+
+    def run(self) -> None:
+        """
+        Executes the animation.
+        """
+        self.is_running = True
+        self.timing_plan.set_timestamp_start(time.time())
+        while self.is_running:
+            self.print_frame()
+            self.update_frame()
+            time.sleep(self.FRAME_SLEEP_PERIOD_SECONDS)
+            if self.timing_plan:
+                self.apply_timing_plan()
 
 
 #######
 # Run #
 #######
 
-while True:
-    # Initialise matrix
-    n_columns, n_rows = os.get_terminal_size()
-    matrix = Matrix(n_rows, n_columns)
+if __name__ == "__main__":
+    
+    # Event start times in seconds
+    timing_plan = TimingPlan(
+        start_ascii_image = 20,
+        stop_rain = 28,
+        wash_ascii_image = 80,
+        total_run_time = 120
+        )
+    
+    while True:
+        n_columns, n_rows = os.get_terminal_size()
+        matrix = Matrix(n_rows, n_columns)
 
-    # Set ascii image
-    with open("ascii_image.txt") as ascii_image_file:
-        ascii_text = ascii_image_file.read()
-    ascii_image = AsciiImage(ascii_text)
-    matrix.set_ascii_image(ascii_image)
+        with open("ascii_image.txt") as ascii_image_file:
+            ascii_text = ascii_image_file.read()
+        ascii_image = AsciiImage(ascii_text)
+        matrix.set_ascii_image(ascii_image)
 
-    # Set messages
-    with open("subliminal_messages.txt") as messages_file:
-        message_texts = [message.strip() for message in messages_file.readlines()]
-    matrix.set_message_texts(message_texts)
+        with open("subliminal_messages.txt") as messages_file:
+            message_texts = [message.strip() for message in messages_file.readlines()]
+        matrix.set_message_texts(message_texts)
 
-    matrix.run()
+        animation = Animation(matrix)
+        animation.set_timing_plan(timing_plan)
+        animation.run()
