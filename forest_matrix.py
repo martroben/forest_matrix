@@ -66,6 +66,38 @@ class CharacterManipulation:
         return "".join(obfuscated_letters)
 
 
+class GradualChange:
+    """
+    Class that gives gradual probability transitions for smooth changes in animation.
+    """
+    def __init__(self, start_probability: float, end_probability: float, n_steps: int, exponent: float = 3) -> None:
+        self.start_probability = start_probability
+        self.end_probability = end_probability
+        self.n_steps = n_steps
+        self.exponent = exponent
+    
+    def function(self, x: float, y1: float, y2: float) -> float:
+        """
+        Core polynomial function.
+        """
+        return (x / self.n_steps)**self.exponent * (y2 - y1) + y1
+
+    def get_accelerating_probability(self, i_step: int) -> float:
+        """
+        Accelerating probability function: small changes in the beginning, big in the end.
+        """
+        if i_step >= self.n_steps:
+            return self.end_probability
+        return self.function(i_step, self.start_probability, self.end_probability)
+    
+    def get_decelerating_probability(self, i_step: int) -> float:
+        """
+        Decelerating probability function: big changes in the beginning, small in the end.
+        """
+        if i_step >= self.n_steps:
+            return self.end_probability
+        return self.function(self.n_steps - i_step, self.end_probability, self.start_probability)
+
 
 class AsciiImage:
     """
@@ -456,8 +488,11 @@ class Matrix:
         n_top_boundary_cells_remaining = len(image_top_cells_active)
 
         # Increase wash drop probability in cubic progression for slow degradation in the beginning and fast in the end
-        stop_function = lambda x: drop_probability_start + (drop_probability_end - drop_probability_start) * (1 - x / n_top_boundary_cells_initial)**3
-        drop_probablity = stop_function(n_top_boundary_cells_remaining)
+        gradual_change = GradualChange(
+            start_probability=drop_probability_start,
+            end_probability=drop_probability_end,
+            n_steps=n_top_boundary_cells_initial)
+        drop_probablity = gradual_change.get_accelerating_probability(n_top_boundary_cells_remaining)
 
         for cell in image_top_cells_active:
             if random.random() > drop_probablity:
@@ -577,17 +612,11 @@ class Matrix:
                 self.active_drop_probability = stop_function(seconds_past_stop_command)
 
 
-class Transition:
-    def __init__(self, start_value: float, end_value: float, n_steps: int) -> None:
-        self.function_cubic = lambda x: x
 
-    def get_cubic_state:
-        pass
 
-    def get_linear_state:
 
-lambda x: self.DROP_PROBABLITY * abs(min(0, (x / stop_transition_duration_seconds - 1)**3))
-lambda x: drop_probability_start + (drop_probability_end - drop_probability_start) * (1 - x / n_top_boundary_cells_initial)**3
+# lambda x: self.DROP_PROBABLITY * abs(min(0, (x / stop_transition_duration_seconds - 1)**3))
+# lambda x: drop_probability_start + (drop_probability_end - drop_probability_start) * (1 - x / n_top_boundary_cells_initial)**3
 
 
 class Animation:
