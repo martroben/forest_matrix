@@ -506,7 +506,8 @@ class Matrix:
         gradual_change = GradualChange(
             start_probability=self.DROP_PROBABLITY,
             end_probability=target_drop_probability,
-            n_steps=change_duration_seconds)
+            n_steps=change_duration_seconds,
+            exponent=2)
         
         self.active_drop_probability = gradual_change.get_decelerating_probability(change_time_elapsed_seconds)
 
@@ -631,7 +632,7 @@ class Animation:
     """
     Class for orchestrating the matrix animation in terminal.
     """
-    FRAME_SLEEP_PERIOD_SECONDS: float = 0.07            # Sets the speed of falling drops
+    FRAME_SLEEP_PERIOD_SECONDS: float = 0.06            # Sets the speed of falling drops
 
     def __init__(self, matrix: Matrix) -> None:
         self.matrix = matrix
@@ -712,7 +713,7 @@ class Animation:
 if __name__ == "__main__":
     
     # Event start times in seconds
-    timing_plan = TimingPlan(
+    timing = dict(
         start_ascii_image = 20,
         stop_rain = 28,
         wash_ascii_image = 80,
@@ -733,5 +734,7 @@ if __name__ == "__main__":
         matrix.set_message_texts(message_texts)
 
         animation = Animation(matrix)
+
+        timing_plan = TimingPlan(**timing)
         animation.set_timing_plan(timing_plan)
         animation.run()
