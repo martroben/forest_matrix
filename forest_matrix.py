@@ -388,7 +388,7 @@ class Matrix:
     MAX_DROP_LENGTH: int = 25
     DROP_PROBABLITY: float = 0.01                           # Drop probablity per column per step
     GLITCH_PROBABILITY: float = 0.0002                      # Glitch probability per cell per step
-    N_CONCURRENT_MESSAGES: int = 50                         # Number of messages active at any time
+    N_CONCURRENT_MESSAGES: int = 40                         # Number of messages active at any time
     MESSAGE_REPLACE_PROBABLITY: float = 0.001               # Probablity that an existing message is deleted and another one spawned per frame
     MESSAGE_OBFUSCATION_PROBABILITY: float = 0.25           # Probability of letter obfuscation per letter in message
 
@@ -711,13 +711,15 @@ class Animation:
 #######
 
 if __name__ == "__main__":
-    
+    os.system("clear")
+    time.sleep(5)
+
     # Event start times in seconds
     timing = dict(
-        start_ascii_image = 20,
-        stop_rain = 28,
-        wash_ascii_image = 80,
-        total_run_time = 120
+        start_ascii_image = 200,
+        stop_rain = 200 + 10,
+        wash_ascii_image = 260,
+        total_run_time = 260 + 40
         )
     
     while True:

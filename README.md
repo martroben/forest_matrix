@@ -39,3 +39,6 @@ The rain can be gradually stopped by reducing the active probablity of new drops
     - use Settings > Defaults > Cursor shape: "Vintage" and Cursor height: 1 to remove cursor flicker.
     - Ascii image [generation tool](https://seotoolbelt.co/tools/ascii-art-generator/#text-list-tab) was used to create the sample image.
 - Obfuscation character replacements were (mostly) pulled from this [obfuscator tool](https://obfuscator.uo1.net/).
+- Drop speed can be adjusted by `FRAME_SLEEP_PERIOD_SECONDS` in `Animation` class.
+- There are a lot of other settings available via the `Matrix` and `Cell` class variables.
+- I used Ubuntu screen recording in full-screen Gnome shell to capture a good quality video. Then [Handbrake](https://handbrake.fr/) video editor on Win11 to convert from webm to mp4.
