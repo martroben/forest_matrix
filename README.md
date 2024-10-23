@@ -3,9 +3,9 @@ The script starts a matrix-like rain animation in terminal. It's a refactored ve
 
 **To run**:
 ```shell
-git clone https://github.com/martroben/ad_hoc/
+git clone https://github.com/martroben/forest_matrix/
 
-cd ad_hoc/forest_matrix
+cd forest_matrix
 python3 forest_matrix.py
 ```
 
